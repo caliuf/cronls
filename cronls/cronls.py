@@ -1,9 +1,9 @@
-#!/usr/bin/python
+ #! /usr/bin/env python
 
 from __future__ import print_function
 
 import sys
-import commands
+import subprocess
 import datetime
 
 # Analizza anche i crontab di sistema
@@ -36,7 +36,7 @@ def parsa_data(data):
 # -------------------------------------------------------------------- #
 
 def get_user_crontab_files():
-	status,output = commands.getstatusoutput('find /var/spool/cron/ -mindepth 1')
+	status,output = subprocess.getstatusoutput('find /var/spool/cron/ -mindepth 1')
 	if status != 0:
 		print("Script eseguibile solo da root!")
 		sys.exit(1)
@@ -126,7 +126,7 @@ def analyze_cron_file(utente,righe):
 			d['dow'] = conv_campo_reg('dow',d,map={'mon':1,'tue':2,'wed':3,'thu':4,'fri':5,'sat':6,'sun':7}, conv={'0':7})
 			#print d
 			lista += [d]
-		except Exception, e:
+		except Exception as e:
 			#print tools_ascii.colorize('<red><b>Utente %(utente)s: Ignorata riga "%(riga)s" (%%s: %%s)</b></red>' % vars() % (e.__class__.__name__, e))
 			eprint('Utente %(utente)s: Ignorata riga "%(riga)s" (%%s: %%s)' % vars() % (e.__class__.__name__, e))
 	return lista
@@ -179,7 +179,7 @@ def extend_sys_crontab(sys_l):
 	sys_l_ext = []
 	for regola in sys_l :
 		dir = regola['cmd'].split('root run-parts ')[1]
-		status,output = commands.getstatusoutput('find %s -mindepth 1' % dir)
+		status,output = subprocess.getstatusoutput('find %s -mindepth 1' % dir)
 		scripts = output.split('\n')
 		for script in [ r for r in scripts if r ] :
 			new_r = dict(regola)
