@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import print_function
 
 from setuptools import setup, find_packages
@@ -40,7 +42,7 @@ setup(
 	author='Francesco Caliumi',
 	tests_require=['pytest'],
 	install_requires=[
-		
+
 	],
 	scripts=[
 		'cronls/cronls.py'
