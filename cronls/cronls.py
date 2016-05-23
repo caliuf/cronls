@@ -7,6 +7,8 @@ import sys
 import subprocess
 import datetime
 
+import args
+
 # Analizza anche i crontab di sistema
 SYS_CRONTAB = True
 
@@ -28,11 +30,20 @@ def eprint(*args, **kwargs):
 
 # ==================================================================== #
 
+def read_file(file):
+	f = open(file,'r')
+	rows = f.readlines()
+	f.close()
+	return rows
+
+# -------------------------------------------------------------------- #
+
 def parsa_data(data):
-	data,ora = data.split('_')
-	argv = [int(data[:4]), int(data[4:6]), int(data[6:8]), 
-	        int(ora[:2]), int(ora[2:4]), int(ora[4:6]) ]
-	return datetime.datetime(*argv)
+	# data,ora = data.split('_')
+	# argv = [int(data[:4]), int(data[4:6]), int(data[6:8]),
+	#         int(ora[:2]), int(ora[2:4]), int(ora[4:6]) ]
+	# return datetime.datetime(*argv)
+	return time.strptime(data,'%y/%m/%d-%H:%M')
 
 # -------------------------------------------------------------------- #
 
@@ -189,14 +200,6 @@ def extend_sys_crontab(sys_l):
 			sys_l_ext += [ new_r ]
 	#for e in sys_l_ext: print e
 	return sys_l_ext
-		
-# -------------------------------------------------------------------- #
-
-def read_file(file):
-	f = open(file,'r')
-	righe = f.readlines()
-	f.close()
-	return righe
 
 # -------------------------------------------------------------------- #
 
