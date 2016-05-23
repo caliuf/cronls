@@ -21,6 +21,12 @@ Output example:
  - "Quickstart" documentation (how to quickly install and use your project)
  - A list of non-Python dependencies (if any) and how to install them
 
+### Let the world know
+
+Where to post cronls:
+- [http://unix.stackexchange.com/questions/7053/how-can-get-a-list-of-all-scheduled-cron-jobs-on-my-machine|How can get a list of all scheduled cron jobs on my machine?]
+
+
 ## References
 
 [https://jeffknupp.com/blog/2013/08/16/open-sourcing-a-python-project-the-right-way/|Open Sourcing a Python Project the Right Way]

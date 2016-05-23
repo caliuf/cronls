@@ -7,32 +7,40 @@ from setuptools.command.test import test as TestCommand
 import io
 import os
 import sys
+import codecs
 
 import cronls
 
-here = os.path.abspath(os.path.dirname(__file__))
+# -------------------------------------------------------------------- #
 
-def read(*filenames, **kwargs):
-	encoding = kwargs.get('encoding', 'utf-8')
-	sep = kwargs.get('sep', '\n')
-	buf = []
-	for filename in filenames:
-		with io.open(filename, encoding=encoding) as f:
-			buf.append(f.read())
-	return sep.join(buf)
+HERE = os.path.abspath(os.path.dirname(__file__))
 
-long_description = read('README.md', 'CHANGES.md')
+def read(*parts):
+    """Return multiple read calls to different readable objects as a single
+    string."""
+    # intentionally *not* adding an encoding option to open
+    return codecs.open(os.path.join(HERE, *parts), 'r').read()
+
+LONG_DESCRIPTION = read('README.md')
+
+# -------------------------------------------------------------------- #
 
 class PyTest(TestCommand):
-	def finalize_options(self):
-		TestCommand.finalize_options(self)
-		self.test_args = []
-		self.test_suite = True
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = [
+            '--strict',
+            '--verbose',
+            '--tb=long',
+            'cronls/test']
+        self.test_suite = True
 
-	def run_tests(self):
-		import pytest
-		errcode = pytest.main(self.test_args)
-		sys.exit(errcode)
+    def run_tests(self):
+        import pytest
+        errno = pytest.main(self.test_args)
+        sys.exit(errno)
+
+# -------------------------------------------------------------------- #
 
 setup(
 	name='cronls',
@@ -40,7 +48,7 @@ setup(
 	url='https://github.com/caiok/cronls/',
 	license='The MIT License (MIT)',
 	author='Francesco Caliumi',
-	tests_require=['pytest'],
+	tests_require=['pytest', 'pytest-cov'],
 	install_requires=[
 
 	],
@@ -52,13 +60,16 @@ setup(
 	},
 	author_email='francesco.caliumi@gmail.com',
 	description='Automated REST APIs for existing database-driven systems',
-	long_description=long_description,
+	long_description=LONG_DESCRIPTION,
 	packages=['cronls'],
 	include_package_data=True,
 	platforms='any',
 	test_suite='cronls.test.test_cronls',
+	zip_safe=False,
 	classifiers = [
 		'Programming Language :: Python',
+		'Programming Language :: Python :: 2',
+		'Programming Language :: Python :: 3',
 		'Development Status :: 5 - Production/Stable',
 		'Natural Language :: English',
 		'Environment :: Console',
@@ -69,6 +80,6 @@ setup(
 		'Topic :: Utilities',
 	],
 	extras_require={
-		'testing': ['pytest'],
+		'testing': ['pytest', 'pytest-cov'],
 	}
 )
