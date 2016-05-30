@@ -6,8 +6,11 @@ from __future__ import print_function
 import sys
 import subprocess
 import datetime
+import time
+import os
+import getpass
 
-import args
+from . import args
 
 # Analizza anche i crontab di sistema
 SYS_CRONTAB = True
@@ -47,13 +50,74 @@ def parsa_data(data):
 
 # -------------------------------------------------------------------- #
 
-def get_user_crontab_files():
-	status,output = subprocess.getstatusoutput('find /var/spool/cron/ -mindepth 1')
-	if status != 0:
-		print("Script eseguibile solo da root!")
-		sys.exit(1)
-	crontab_files = output.split('\n')
-	return crontab_files
+def get_crontab_files(input_args):
+	"""
+
+	Args:
+		input_args ():
+
+	Returns:
+		List of dictionaries containing user and file contents for each crontab.
+		Dictionaries are in the following form:
+		{
+			'user': '<user>',
+			'cron': [
+				'<cron line 1>',
+				'<cron line 2>',
+				...
+			]
+		}
+
+	Raises:
+		NotImplementedError: If "crontab" command seems not installed on the system
+		OSError: Any other error with "crontab" command
+
+	"""
+
+	outlist = []
+
+	if input_args.all:
+
+		# Reads all crontabs from crontabs path
+		status, output = subprocess.getstatusoutput('find %s -mindepth 1 -type f' % input_args.cron_dir)
+
+		for file in output.split('/n'):
+			with open(file, 'r') as f:
+				outlist += [{
+					'user': os.path.basename(file),
+					'rows': f.readlines()
+				}]
+
+		# Reads the system cron
+		if input_args.system_cron:
+			with open(input_args.sys_cron_file, 'r') as f:
+				outlist += [{
+					'user': 'root[sys]',
+					'rows': f.readlines()
+				}]
+
+	else:
+		# Reads only the user cron
+		status, output = subprocess.getstatusoutput('crontab -l')
+
+		# If crontab is not set for the user, return an empty list
+		if status == 1 and output.lower().startswith('crontab: no crontab for'):
+			return []
+
+		if status > 1 and output.find('crontab: not found') >= 0:
+			raise NotImplementedError('Seems that command "crontab" is not installed on the system')
+
+		if status > 1:
+			raise OSError('"crontab -l" ended with error code "{status}" ({output})'.format(**vars()))
+
+		outlist += [{
+			'user': getpass.getuser(),
+			'rows': output
+		}]
+
+	return outlist
+
+
 
 # ==================================================================== #
 
@@ -203,8 +267,8 @@ def extend_sys_crontab(sys_l):
 
 # -------------------------------------------------------------------- #
 
-def main(data_iniz,data_fin):
-	c_files = get_user_crontab_files()
+def main(input_args):
+	c_files = get_crontab_files(input_args)
 	crontab_l = []
 	for file in c_files :
 		user_l = analyze_cron_file(utente=file.split('/')[-1], righe=read_file(file))
@@ -221,28 +285,6 @@ def main(data_iniz,data_fin):
 
 if __name__ == '__main__':
 	
-	if len(sys.argv) == 2 and sys.argv[1] in ('-h','--help'):
-		print(USAGE)
-		sys.exit(0)
-	
-	if len(sys.argv) != 3:
-		print("Numero argomenti errato!")
-		sys.exit(1)
-	
-	try:
-		data_iniz = parsa_data(sys.argv[1])
-	except:
-		print("Formato data iniziale errato!")
-		sys.exit(1)
-	
-	try:
-		data_fin = parsa_data(sys.argv[2])
-	except:
-		print("Formato data finale errato!")
-		sys.exit(1)
-	
-	if (data_fin-data_iniz).days < 0:
-		print("Data iniziale maggiore di quella finale!")
-	
-	main(data_iniz,data_fin)
+	input_args = args.parse_cmd_args(sys.argv[1:])
+	#main(input_args)
 

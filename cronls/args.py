@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+	# -*- coding: utf-8 -*-
 
 """Module containing command line parser definition."""
 
@@ -209,7 +209,7 @@ def parse_cmd_args(argv):
 		check_dir(args.cron_dir)
 
 		if args.system_cron:
-			check_file(args.system_cron)
+			check_file(args.sys_cron_file)
 	# -------------------------------------- #
 
 	return args

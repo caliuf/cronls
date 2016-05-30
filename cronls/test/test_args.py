@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import argparse
 import datetime
 import cronls.args
@@ -65,10 +67,10 @@ class TestCommandLineArgs:
 		assert cmp_datetimes(args.start_time, calc_datetime(0))
 		assert cmp_datetimes(args.stop_time, calc_datetime(+24))
 		assert args.all == False
-		assert args.system_cron == False
+		assert args.system_cron == True
 		assert hasattr(args,'cron_dir')
 		assert hasattr(args, 'sys_cron_file')
-		assert args.max_hourly_repetitions == 10
+		assert args.max_hourly_repetitions == 4
 
 	def test_times_1(self):
 		args = parse_args("-24 +24")
