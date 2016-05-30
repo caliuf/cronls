@@ -29,4 +29,7 @@ Where to post cronls:
 
 ## References
 
-[https://jeffknupp.com/blog/2013/08/16/open-sourcing-a-python-project-the-right-way/|Open Sourcing a Python Project the Right Way]
+ - [https://jeffknupp.com/blog/2013/08/16/open-sourcing-a-python-project-the-right-way/|Open Sourcing a Python Project the Right Way]
+ - Project to "steal" from 1: [|Sandman2]
+ - Project to "steal" from 2: [https://github.com/MartinThoma/hwrt|HWRT]
+ 
