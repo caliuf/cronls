@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Module containing command line parser definition."""
+
 import os
 import argparse
 import datetime
@@ -7,6 +9,20 @@ import datetime
 # ==================================================================== #
 
 def check_datetime(value):
+	"""
+	Check and convert "value" to a datetime object. Value can have multiple formats,
+	according to the argparse.ArgumentParser doc (defined in :func:`parse_cmd_args`)
+
+	Args:
+		value (str): The input value
+
+	Returns:
+		datetime.datetime: the input value converted to a datetime object
+
+	Raises:
+		argparse.ArgumentTypeError
+	"""
+
 	# Case "now"
 	if value == 'now':
 		return datetime.datetime.now()
@@ -36,6 +52,20 @@ def check_datetime(value):
 # -------------------------------------------------------------------- #
 
 def check_dir(value):
+	"""
+	Check if "value" is a valid directory (it must exists and the user must have
+	list privileges).
+
+	Args:
+		value (str): The input value
+
+	Returns:
+		str: the same input value if all is correct
+
+	Raises:
+		argparse.ArgumentTypeError
+	"""
+
 	if not os.path.exists(value):
 		raise argparse.ArgumentTypeError('%s: Invalid path' % value)
 	if not os.path.isdir(value):
@@ -51,6 +81,19 @@ def check_dir(value):
 # -------------------------------------------------------------------- #
 
 def check_file(value):
+	"""
+	Check if "value" is a valid file (it must exists and the user must have
+	read privileges).
+
+	Args:
+		value (str): The input value
+
+	Returns:
+		str: the same input value if all is correct
+
+	Raises:
+		argparse.ArgumentTypeError
+	"""
 
 	if not os.path.exists(value):
 		raise argparse.ArgumentTypeError('%s: Invalid path' % value)
@@ -68,6 +111,19 @@ def check_file(value):
 # ==================================================================== #
 
 def parse_cmd_args(argv):
+	"""
+	Parse the given arguments.
+
+	Args:
+		argv (list): List of command line arguments (strings)
+
+	Returns:
+		argparse.ArgumentParser: The final parser object (which attributes are the
+			input arguments)
+
+	Raises:
+		argparse.ArgumentTypeError
+	"""
 
 	# -------------------------------------- #
 	# Parser definition
