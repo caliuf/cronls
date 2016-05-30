@@ -54,12 +54,21 @@ def parse_args(cmd):
 class TestCommandLineArgs:
 	"""
 	Tests for command line input
+
+	TODO:
+		- Tests for system cron file
+		- Tests for cron directory
 	"""
 
-	def test_default(self):
+	def test_defaults(self):
 		args = parse_args("")
 		assert cmp_datetimes(args.start_time, calc_datetime(0))
 		assert cmp_datetimes(args.stop_time, calc_datetime(+24))
+		assert args.all == False
+		assert args.system_cron == False
+		assert hasattr(args,'cron_dir')
+		assert hasattr(args, 'sys_cron_file')
+		assert args.max_hourly_repetitions == 10
 
 	def test_times_1(self):
 		args = parse_args("-24 +24")
@@ -70,6 +79,10 @@ class TestCommandLineArgs:
 		args = parse_args("16/04/10 16/05/10-10:10")
 		assert cmp_datetimes(args.start_time, datetime.datetime(2016,4,10))
 		assert cmp_datetimes(args.stop_time, datetime.datetime(2016,5,10,10,10))
+
+	def test_times_3(self):
+		args = parse_args("--all")
+
 
 # ==================================================================== #
 

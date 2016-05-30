@@ -217,6 +217,8 @@ def parse_cmd_args(argv):
 # ==================================================================== #
 
 if __name__ == '__main__':
-	args = parse_cmd_args("+2 -s -r 10 -d /var --sys-cron-file /etc/hosts --all".split())
+	#args = parse_cmd_args("+2 -s -r 10 -d /var --sys-cron-file /etc/hosts --all".split())
 	args = parse_cmd_args("+2 -s -r 10".split())
+	#args = parse_cmd_args("--all".split())
+
 	print(args)
