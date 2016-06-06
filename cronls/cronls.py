@@ -9,14 +9,11 @@ import datetime
 import time
 import os
 import getpass
+import re
 
 from . import args
 
-# Analizza anche i crontab di sistema
-SYS_CRONTAB = True
-
-# Massima frequenza in un'ora sopra la quale viene inibita la visualizzazione
-MAX_MIN_FREQ = 3
+SYS_USER = 'root[sys]'
 
 # ==================================================================== #
 
@@ -28,7 +25,7 @@ analizzatore_crontab.py <aaaammgg_hhmmss> <aaaammgg_hhmmss>
 
 # ==================================================================== #
 
-def eprint(*args, **kwargs):
+def print_error(*args, **kwargs):
 	print(*args, file=sys.stderr, **kwargs)
 
 # ==================================================================== #
@@ -48,7 +45,7 @@ def parsa_data(data):
 	# return datetime.datetime(*argv)
 	return time.strptime(data,'%y/%m/%d-%H:%M')
 
-# -------------------------------------------------------------------- #
+# ==================================================================== #
 
 def get_crontab_files(input_args):
 	"""
@@ -92,7 +89,7 @@ def get_crontab_files(input_args):
 		if input_args.system_cron:
 			with open(input_args.sys_cron_file, 'r') as f:
 				outlist += [{
-					'user': 'root[sys]',
+					'user': SYS_USER,
 					'rows': f.readlines()
 				}]
 
@@ -179,33 +176,39 @@ def conv_campo_reg(campo,regola,map={},conv={}):
 	
 # -------------------------------------------------------------------- #
 
-def analyze_cron_file(utente,righe):
+def analyze_cron_file(user, rows):
 	
-	# Rimozione \n finali
-	righe = [r.strip() for r in righe]
-	# Rimozione righe vuote
-	righe = [ r for r in righe if r ]
-	# Rimozione righe di commenti
-	righe = [ r for r in righe if r.find('#') != 0 ]
-	#print righe
-	#print
+	# Remove trailing \n
+	rows = [r.strip() for r in rows]
+
+	# Filter empty lines
+	rows = [r for r in rows if r]
+
+	# Filter comment lines
+	rows = [r for r in rows if r.find('#') != 0]
+
+	# Filter variable definitions (e.g. "SHELL=...")
+	rows = [r for r in rows if not re.match(r'\s*[A-Z_-]+=', r, re.IGNORECASE)]
 	
-	lista = []
-	for riga in righe:
+	c_list = []
+	for row in rows:
 		try:
-			d = {'user':utente, 'raw':riga}
-			d['m'],d['h'],d['dom'],d['mon'],d['dow'],d['cmd'] = riga.split(None,5)
+			d = {
+				'user':user,
+				'raw':row
+			}
+			d['m'],d['h'],d['dom'],d['mon'],d['dow'],d['cmd'] = row.split(None,5)
 			d['m'] = conv_campo_reg('m',d,map={},conv={})
 			d['h'] = conv_campo_reg('h',d,map={},conv={})
 			d['dom'] = conv_campo_reg('dom',d,map={'jan':1,'feb':2,'mar':3,'apr':4,'may':5,'jun':6,'jul':7,'aug':8,'sep':9,'oct':10,'nov':11,'dec':12},conv={})
 			d['mon'] = conv_campo_reg('mon',d,map={},conv={})
 			d['dow'] = conv_campo_reg('dow',d,map={'mon':1,'tue':2,'wed':3,'thu':4,'fri':5,'sat':6,'sun':7}, conv={'0':7})
 			#print d
-			lista += [d]
+			c_list += [d]
 		except Exception as e:
 			#print tools_ascii.colorize('<red><b>Utente %(utente)s: Ignorata riga "%(riga)s" (%%s: %%s)</b></red>' % vars() % (e.__class__.__name__, e))
-			eprint('Utente %(utente)s: Ignorata riga "%(riga)s" (%%s: %%s)' % vars() % (e.__class__.__name__, e))
-	return lista
+			print_error('Utente %(user)s: Ignorata riga "%(row)s" (%%s: %%s)' % vars() % (e.__class__.__name__, e))
+	return c_list
 
 # ==================================================================== #
 
@@ -267,19 +270,32 @@ def extend_sys_crontab(sys_l):
 
 # -------------------------------------------------------------------- #
 
-def main(input_args):
+def process_crontab(input_args):
 	c_files = get_crontab_files(input_args)
+
 	crontab_l = []
-	for file in c_files :
-		user_l = analyze_cron_file(utente=file.split('/')[-1], righe=read_file(file))
-		crontab_l.extend(user_l)
-	
-	if SYS_CRONTAB :
-		sys_l = analyze_cron_file('sys',read_file('/etc/crontab')[4:])
-		sys_l_ext = extend_sys_crontab(sys_l)
-		crontab_l.extend( sys_l_ext )
-	
-	calcola_crontab(crontab_l,data_iniz,data_fin)
+
+	for file in c_files:
+		processed_cron = analyze_cron_file(**file, )
+
+		if file['user'] == SYS_USER:
+			# If crontab is the system one, we need to do some work
+			crontab_l.extend(extend_sys_crontab(processed_cron))
+		else:
+			crontab_l.extend(processed_cron)
+
+	# if input_args.system_cron :
+	# 	sys_l = analyze_cron_file('sys', read_file('/etc/crontab')[4:])
+	# 	sys_l_ext = extend_sys_crontab(sys_l)
+	# 	crontab_l.extend( sys_l_ext )
+
+	return crontab_l
+
+# -------------------------------------------------------------------- #
+
+def main(input_args):
+	crontab_l = process_crontab(input_args)
+	calcola_crontab(input_args, crontab_l)
 
 # -------------------------------------------------------------------- #
 
