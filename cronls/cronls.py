@@ -15,6 +15,11 @@ from . import args
 
 SYS_USER = 'root[sys]'
 
+DAYS_OF_WEEK = {'mon':1,'tue':2,'wed':3,'thu':4,'fri':5,'sat':6,'sun':7}
+DAYS_OF_WEEK_ALIASES = {7:0}
+
+MONTHS_OF_YEAR = {'jan':1,'feb':2,'mar':3,'apr':4,'may':5,'jun':6,'jul':7,'aug':8,'sep':9,'oct':10,'nov':11,'dec':12}
+
 # ==================================================================== #
 
 USAGE = """
@@ -22,6 +27,11 @@ analizzatore_crontab.py <aaaammgg_hhmmss> <aaaammgg_hhmmss>
 	Analizza i crontab di tutti gli utenti (necessita dei privilegi
 	di root) nel periodo fornito
 """
+
+# ==================================================================== #
+
+class CronParseError(Exception):
+	pass
 
 # ==================================================================== #
 
@@ -173,7 +183,123 @@ def conv_campo_reg(campo,regola,map={},conv={}):
 		raise Exception('Regola %s, campo "%s": formato non trattato!' % (regola,campo) )
 	
 	return final_l
-	
+
+# -------------------------------------------------------------------- #
+
+def parse_and_remove_step(e):
+	step = 1
+	if '/' in e:
+		if e.count('/') > 1:
+			raise CronParseError('%(e)r: more than one "/" in the same field' % vars())
+		e, step = e.split('/')
+
+		try:
+			step = int(step)
+		except ValueError:
+			raise CronParseError('%(e)r: %(step)r not numeric' % vars())
+
+	return e, step
+
+# -------------------------------------------------------------------- #
+
+def expand_rule(val, field_type='', values_range=0, mapping={}, aliases={}):
+	"""
+	Expand a crontab field
+	Args:
+		val (str): field value to expand.
+
+		field_type (str): field type between "m", "h", "dom", "mon", "dow".
+
+		values_range (int): max possible value for this field. Only useful when there is a "*/x" rule.
+
+		mapping (dict): dict that optionally map values that need to be converted in other values.
+			The keys of the dict are the literal starting values (i.e. strings), the values are the final
+			values (i.e. any data type).
+
+			E.g: {'A': 1, 'B': 'b', ...}
+
+		aliases (dict): after all processing, this dict map final values that should be converted in
+			other values. This is only useful by far for converting 7 in 0 in days of week.
+
+			E.g: {7: 0, 123: 1, ...}
+
+	Returns:
+	    list: List of expanded values
+
+	Todo:
+		- Handling a range of months in form "jan-apr" and a range of days of week in form "tue-fri"
+	"""
+
+	# Input parameters check
+	assert values_range != 0
+
+	# Expanding comma separated values (e.g. "1,3,5")
+	l = val.split(',')
+
+	# Expanding ranges and wildcards (doesn't touch other values)
+	for e in list(l):
+		e_orig = e
+
+		if not e:
+			raise CronParseError('%(val)r: Missed value before or after ","' % vars())
+
+		# Expanding ranges (e.g. "10-20")
+		if '-' in e:
+			if e.count('-') > 1:
+				raise CronParseError('%(val)r: more than one "-" in the same field' % vars())
+
+			# Step parsing and removal (e.g. "10-20/2" becomes "10-20" step=2)
+			e, step = parse_and_remove_step(e)
+
+			# Indentify and check the range
+			range_from,range_to = e.split('-')
+
+			if range_from in mapping:
+				range_from = mapping[range_from]
+			if range_to in mapping:
+				range_to = mapping[range_to]
+
+			try:
+				range_from = int(range_from)
+				range_to = int(range_to)
+			except ValueError:
+				raise CronParseError('%(val)r: %(range_from)r or %(range_to)r not numeric' % vars())
+
+			# Remove from list the old item and extend the same list with the computed range
+			l.remove( e_orig )
+			l.extend( range(range_from, range_to+1, step) )
+
+		# Expanding wildcards (e.g. "*")
+		if e.startswith('*'):
+
+			# Step parsing and removal (e.g. "*/2" becomes "*" step=2)
+			e, step = parse_and_remove_step(e)
+
+			if e != '*':
+				raise CronParseError('%(val)r: %(e)r should be only "*"' % vars())
+
+			# Remove from list the old item and extend the same list with the computed range
+			l.remove(e_orig)
+			l.extend(range(0, values_range + 1, step))
+
+
+	# Substitutions
+	new_l = []
+
+	for e in l:
+		if e in mapping:
+			e = mapping[e]
+
+		e = int(e)
+		
+		if e in aliases:
+			e = aliases[e]
+
+		new_l.append( int(e) )
+
+	return new_l
+
+
 # -------------------------------------------------------------------- #
 
 def analyze_cron_file(user, rows):
@@ -193,16 +319,23 @@ def analyze_cron_file(user, rows):
 	c_list = []
 	for row in rows:
 		try:
+			c_fields = row.split(None, 5)
 			d = {
-				'user':user,
-				'raw':row
+				'user': user,
+				'raw': row,
+
+				'm': c_fields[0],
+				'h': c_fields[1],
+				'dom': c_fields[2],
+				'mon': c_fields[3],
+				'dow': c_fields[4],
+				'cmd': c_fields[5],
 			}
-			d['m'],d['h'],d['dom'],d['mon'],d['dow'],d['cmd'] = row.split(None,5)
 			d['m'] = conv_campo_reg('m',d,map={},conv={})
 			d['h'] = conv_campo_reg('h',d,map={},conv={})
-			d['dom'] = conv_campo_reg('dom',d,map={'jan':1,'feb':2,'mar':3,'apr':4,'may':5,'jun':6,'jul':7,'aug':8,'sep':9,'oct':10,'nov':11,'dec':12},conv={})
+			d['dom'] = conv_campo_reg('dom',d,map=MONTHS_OF_YEAR,conv={})
 			d['mon'] = conv_campo_reg('mon',d,map={},conv={})
-			d['dow'] = conv_campo_reg('dow',d,map={'mon':1,'tue':2,'wed':3,'thu':4,'fri':5,'sat':6,'sun':7}, conv={'0':7})
+			d['dow'] = conv_campo_reg('dow',d,map=DAYS_OF_WEEK, conv=DAYS_OF_WEEK_ALIASES)
 			#print d
 			c_list += [d]
 		except Exception as e:

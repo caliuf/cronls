@@ -35,3 +35,12 @@ if __name__ == '__main__':
 	input_args = cronls.args.parse_cmd_args([])
 	l1 = cronls.cronls.get_crontab_files(input_args)
 	print(json.dumps(l1, indent=4))
+
+	print(cronls.cronls.expand_rule('10', field_type='', values_range=59, mapping={}, aliases={}))
+	print(cronls.cronls.expand_rule('*', field_type='', values_range=59, mapping={}, aliases={}))
+	print(cronls.cronls.expand_rule('*/5', field_type='', values_range=59, mapping={}, aliases={}))
+	#print(cronls.cronls.expand_rule('*/10,', field_type='', values_range=59, mapping={}, aliases={}))
+	print(cronls.cronls.expand_rule('*/10,5', field_type='', values_range=59, mapping={}, aliases={}))
+	print(cronls.cronls.expand_rule('mon-fri', field_type='', values_range=6, mapping=cronls.cronls.DAYS_OF_WEEK, aliases={}))
+	print(cronls.cronls.expand_rule('mon-fri/2', field_type='', values_range=6, mapping=cronls.cronls.DAYS_OF_WEEK, aliases={}))
+	print(cronls.cronls.expand_rule('5,mon,7', field_type='', values_range=6, mapping=cronls.cronls.DAYS_OF_WEEK, aliases=cronls.cronls.DAYS_OF_WEEK_ALIASES))
