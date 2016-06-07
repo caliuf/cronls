@@ -128,64 +128,6 @@ def get_crontab_files(input_args):
 
 # ==================================================================== #
 
-# Converte un campo di una regola in una lista di numeri.
-# Il crontab viene supposto esatto
-# I range vengono espressi per esteso (i.e. 1-6 => [1,2,3,4,5,6]).
-# Se e` presente una mappatura, le stringhe indicate vengono convertite
-#  nel numero indicato.
-# Se e` presente una conversione, i numeri indicati vengono convertiti nei
-#  corrispettivi numeri indicati
-# Non e` implementato l'operatore '/' (ad es '*/3')
-# Non viene considerata la stramberia per cui il "dow" e il "dom" siano
-#  espressi con un "or" anziche` un "and" come per tutti gli altri campi
-def conv_campo_reg(campo,regola,map={},conv={}):
-	#print vars()
-	try :
-		l = regola[campo].split(',')
-		new_l = []
-		for c in l:
-			#print repr(c)
-			if c.find('-') >= 0 :
-				da,a = c.split('-')
-				for i in range(int(da), int(a)+1):
-					new_l += [i]
-			else :
-				if map.has_key(c):
-					new_l += map[c]
-				
-				elif c == '*':
-					new_l += [c]
-				
-				elif c.startswith('*/'):
-					step = c[2:]
-					assert step.isdigit(), Exception ('Atteso valore numerico (es "*/5"). %s' % vars())
-					if campo == 'm':
-						new_l += range(0,59,int(step))
-					elif campo == 'h':
-						new_l += range(0,23,int(step))
-					else:
-						raise Exception('Step non gestito per campo "%s". [%s]' % (campo,vars()))
-					 
-				elif not c.isdigit():
-					raise Exception('asd')
-				
-				else :
-					new_l += [c]
-		final_l = []
-		for c in new_l :
-			if c == '*':
-				final_l += [ '*' ]
-			elif conv.has_key(c):
-				final_l += [ int(conv[c]) ]
-			else :
-				final_l += [ int(c) ]
-	except :
-		raise Exception('Regola %s, campo "%s": formato non trattato!' % (regola,campo) )
-	
-	return final_l
-
-# -------------------------------------------------------------------- #
-
 def parse_and_remove_step(e):
 	step = 1
 	if '/' in e:
@@ -224,7 +166,10 @@ def expand_rule(val, field_type='', values_range=0, mapping={}, aliases={}):
 			E.g: {7: 0, 123: 1, ...}
 
 	Returns:
-	    set: Set of expanded values
+		set: Set of expanded values
+
+	Raises
+		CronParseError: Raises CronParseError if some known problem happens
 
 	Todo:
 		- Handling a range of months in form "jan-apr" and a range of days of week in form "tue-fri"
@@ -304,6 +249,27 @@ def expand_rule(val, field_type='', values_range=0, mapping={}, aliases={}):
 # -------------------------------------------------------------------- #
 
 def analyze_cron_file(user, rows):
+	"""
+	Analyze crontab rows and return the parsed result
+
+	Args:
+	    user (str): crontab user
+	    rows (list): list of crontab rows (strings)
+
+	Returns:
+        list: List of dictionaries in the form:
+			{
+				'user': '...',              # Crontab user
+				'raw': '...',               # Raw crontab row
+				'm': [0,1, ..., 59],        # Minutes
+				'h': [0,1, ..., 23],        # Hours
+				'dom': [0, 1, ..., 31],     # Days of Month
+				'mon': [0, 1, ..., 12],     # Months
+				'dow': [0, 1, ..., 6],      # Days of week
+				'cmd': '...'                # Command
+			}
+
+	"""
 	
 	# Remove trailing \n
 	rows = [r.strip() for r in rows]
@@ -321,27 +287,32 @@ def analyze_cron_file(user, rows):
 	for row in rows:
 		try:
 			c_fields = row.split(None, 5)
+
 			d = {
 				'user': user,
+
+				# Whole crontab row
 				'raw': row,
 
-				'm': c_fields[0],
-				'h': c_fields[1],
-				'dom': c_fields[2],
-				'mon': c_fields[3],
-				'dow': c_fields[4],
+				# Minute
+				'm':   expand_rule(c_fields[0], 'm',   values_range=59, mapping={}, aliases={}),
+				# Hour
+				'h':   expand_rule(c_fields[1], 'h',   values_range=23, mapping={}, aliases={}),
+				# Day of Month
+				'dom': expand_rule(c_fields[2], 'dom', values_range=31, mapping={}, aliases={}),
+				# Month
+				'mon': expand_rule(c_fields[3], 'mon', values_range=12, mapping=MONTHS_OF_YEAR, aliases={}),
+				# Day of Week
+				'dow': expand_rule(c_fields[4], 'dow', values_range=6,  mapping=DAYS_OF_WEEK, aliases=DAYS_OF_WEEK_ALIASES),
+
+				# Complete command
 				'cmd': c_fields[5],
 			}
-			d['m'] = conv_campo_reg('m',d,map={},conv={})
-			d['h'] = conv_campo_reg('h',d,map={},conv={})
-			d['dom'] = conv_campo_reg('dom',d,map=MONTHS_OF_YEAR,conv={})
-			d['mon'] = conv_campo_reg('mon',d,map={},conv={})
-			d['dow'] = conv_campo_reg('dow',d,map=DAYS_OF_WEEK, conv=DAYS_OF_WEEK_ALIASES)
-			#print d
-			c_list += [d]
+			c_list += [ d ]
+
 		except Exception as e:
-			#print tools_ascii.colorize('<red><b>Utente %(utente)s: Ignorata riga "%(riga)s" (%%s: %%s)</b></red>' % vars() % (e.__class__.__name__, e))
-			print_error('Utente %(user)s: Ignorata riga "%(row)s" (%%s: %%s)' % vars() % (e.__class__.__name__, e))
+			print_error('User %(user)r: Ignored row %(row)r (%%s: %%s)' % vars() % (e.__class__.__name__, e))
+
 	return c_list
 
 # ==================================================================== #
