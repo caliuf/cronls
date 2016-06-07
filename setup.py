@@ -64,7 +64,7 @@ setup(
 	packages=['cronls'],
 	include_package_data=True,
 	platforms='any',
-	test_suite='cronls.test.test_cronls',
+	test_suite='cronls.test',
 	zip_safe=False,
 	classifiers = [
 		'Programming Language :: Python',

@@ -224,7 +224,7 @@ def expand_rule(val, field_type='', values_range=0, mapping={}, aliases={}):
 			E.g: {7: 0, 123: 1, ...}
 
 	Returns:
-	    list: List of expanded values
+	    set: Set of expanded values
 
 	Todo:
 		- Handling a range of months in form "jan-apr" and a range of days of week in form "tue-fri"
@@ -291,13 +291,14 @@ def expand_rule(val, field_type='', values_range=0, mapping={}, aliases={}):
 			e = mapping[e]
 
 		e = int(e)
-		
+
 		if e in aliases:
 			e = aliases[e]
 
 		new_l.append( int(e) )
 
-	return new_l
+	# Returns a set in order to remove dups and make values lookups faster
+	return set(new_l)
 
 
 # -------------------------------------------------------------------- #
