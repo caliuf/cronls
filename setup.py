@@ -58,6 +58,11 @@ setup(
 	cmdclass={
 		'test': PyTest
 	},
+	entry_points={
+		'distutils.commands': [
+			'cronls = cronls.cronls:CronlsCommand'
+		]
+	},
 	author_email='francesco.caliumi@gmail.com',
 	description='Automated REST APIs for existing database-driven systems',
 	long_description=LONG_DESCRIPTION,

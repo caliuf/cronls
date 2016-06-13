@@ -10,6 +10,7 @@ import time
 import os
 import getpass
 import re
+import setuptools
 
 from . import args
 
@@ -19,6 +20,8 @@ DAYS_OF_WEEK = {'mon':1,'tue':2,'wed':3,'thu':4,'fri':5,'sat':6,'sun':7}
 DAYS_OF_WEEK_ALIASES = {7:0}
 
 MONTHS_OF_YEAR = {'jan':1,'feb':2,'mar':3,'apr':4,'may':5,'jun':6,'jul':7,'aug':8,'sep':9,'oct':10,'nov':11,'dec':12}
+
+PRINT_FORMAT = "{ts:%%Y-%%m-%%d %%H:%%M} :: {user:%(max_user_length)d} :: {raw}"
 
 # ==================================================================== #
 
@@ -119,7 +122,7 @@ def get_crontab_files(input_args):
 
 		outlist += [{
 			'user': getpass.getuser(),
-			'rows': output
+			'rows': output.split('\n')
 		}]
 
 	return outlist
@@ -128,19 +131,54 @@ def get_crontab_files(input_args):
 
 # ==================================================================== #
 
-def parse_and_remove_step(e):
+def apply_substitutions(row):
+	"""
+	Replace @-rules (e.g. @yearly) with the corresponding cron standard expression (e.g. "0 0 1 1 *")
+
+	Args:
+		row: Initial row
+
+	Returns:
+		str: The row with @-rules replaced
+	"""
+	row = row.replace('@yearly',   '0 0 1 1 *')
+	row = row.replace('@annually', '0 0 1 1 *')
+	row = row.replace('@monthly',  '0 0 1 * *')
+	row = row.replace('@weekly',   '0 0 * * 0')
+	row = row.replace('@daily',    '0 0 * * *')
+	row = row.replace('@hourly',   '0 * * * *')
+	return row
+
+# -------------------------------------------------------------------- #
+
+def parse_and_remove_step(field):
+	"""
+	Parse a field, remove the "step" part (i.e. "/x") and return polished field and step value
+
+	Args:
+	    field (str):
+
+	Returns:
+		tuple: Tuple containing:
+
+			field (str): Field without the "/..." part
+			step (int): Step to be used in ranges (default 1)
+
+	Raises
+		CronParseError: Raises CronParseError if some known problem happens
+	"""
 	step = 1
-	if '/' in e:
-		if e.count('/') > 1:
-			raise CronParseError('%(e)r: more than one "/" in the same field' % vars())
-		e, step = e.split('/')
+	if '/' in field:
+		if field.count('/') > 1:
+			raise CronParseError('%(field)r: more than one "/" in the same field' % vars())
+		field, step = field.split('/')
 
 		try:
 			step = int(step)
 		except ValueError:
-			raise CronParseError('%(e)r: %(step)r not numeric' % vars())
+			raise CronParseError('%(field)r: %(step)r not numeric' % vars())
 
-	return e, step
+	return field, step
 
 # -------------------------------------------------------------------- #
 
@@ -168,7 +206,7 @@ def expand_rule(val, field_type='', values_range=0, mapping={}, aliases={}):
 	Returns:
 		set: Set of expanded values
 
-	Raises
+	Raises:
 		CronParseError: Raises CronParseError if some known problem happens
 
 	Todo:
@@ -227,7 +265,6 @@ def expand_rule(val, field_type='', values_range=0, mapping={}, aliases={}):
 			l.remove(e_orig)
 			l.extend(range(0, values_range + 1, step))
 
-
 	# Substitutions
 	new_l = []
 
@@ -248,16 +285,16 @@ def expand_rule(val, field_type='', values_range=0, mapping={}, aliases={}):
 
 # -------------------------------------------------------------------- #
 
-def analyze_cron_file(user, rows):
+def analyze_cron_file(user, rows) -> list:
 	"""
 	Analyze crontab rows and return the parsed result
 
 	Args:
-	    user (str): crontab user
-	    rows (list): list of crontab rows (strings)
+		user (str): crontab user
+		rows (list): list of crontab rows (strings)
 
 	Returns:
-        list: List of dictionaries in the form:
+		list: List of dictionaries in the form:
 			{
 				'user': '...',              # Crontab user
 				'raw': '...',               # Raw crontab row
@@ -270,7 +307,7 @@ def analyze_cron_file(user, rows):
 			}
 
 	"""
-	
+
 	# Remove trailing \n
 	rows = [r.strip() for r in rows]
 
@@ -286,6 +323,9 @@ def analyze_cron_file(user, rows):
 	c_list = []
 	for row in rows:
 		try:
+			# Apply non standard substitutions
+			row = apply_substitutions(row)
+
 			c_fields = row.split(None, 5)
 
 			d = {
@@ -329,7 +369,7 @@ def troppo_frequente(regola):
 def is_ok(campo,regola,valore_confronto):
 	if regola[campo][0] == '*':
 		return True
-	
+
 	ok = False
 	for r in regola[campo] :
 		if r == valore_confronto :
@@ -344,7 +384,7 @@ def calcola_crontab(crontab_l,data_iniz,data_fin):
 	
 	while ( (data_fin - data_app).days >= 0 ):
 		
-		for regola in crontab_l :
+		for regola in crontab_l  :
 			soddisfatta = True	
 			soddisfatta = soddisfatta and is_ok('m',   regola, data_app.minute)
 			soddisfatta = soddisfatta and is_ok('h',   regola, data_app.hour)
@@ -356,6 +396,61 @@ def calcola_crontab(crontab_l,data_iniz,data_fin):
 				print("%s :: %-7s :: %s" % (data_app,regola['user'],regola['raw']))
 		
 		data_app = data_app + un_minuto
+
+
+# -------------------------------------------------------------------- #
+
+def is_ok_new(rule, field, test_value):
+	return test_value in rule[field]
+
+# -------------------------------------------------------------------- #
+
+def calc_executed_crontabs(input_args, crontab_l):
+	ret_list = []
+
+	one_minute = datetime.timedelta(0, 60)
+	current_ts = input_args.start_time #+ datetime.timedelta(0, 0)
+
+	while current_ts <= input_args.stop_time:
+
+		for rule in crontab_l:
+			satisfied = (
+				is_ok_new(rule, 'm', current_ts.minute) and
+				is_ok_new(rule, 'h', current_ts.hour) and
+				is_ok_new(rule, 'mon', current_ts.month) and
+
+				# Day of month and day of week are evalued in OR (ref:
+				( is_ok_new(rule, 'dom', current_ts.day) or
+				  is_ok_new(rule, 'dow', current_ts.isoweekday()) )
+			)
+
+			if satisfied:
+				ret_list += [{
+					'ts': current_ts,
+					'rule': rule
+				}]
+
+		current_ts = current_ts + one_minute
+
+	return ret_list
+
+# ==================================================================== #
+
+def too_much_frequent(input_args, rule):
+	if len(rule['m']) > input_args.max_hourly_repetitions:
+		return True
+	else:
+		return False
+
+# -------------------------------------------------------------------- #
+
+def print_executed_crontabs(input_args, exec_l):
+	max_user_length = max([len(e['rule']['user']) for e in exec_l])
+	tmp_format = PRINT_FORMAT % vars()
+
+	for e in exec_l:
+		if not too_much_frequent(input_args, e['rule']):
+			print(tmp_format.format( ts=e['ts'], user=e['rule']['user'], raw=e['rule']['raw']))
 
 # ==================================================================== #
 
@@ -381,7 +476,7 @@ def process_crontab(input_args):
 	crontab_l = []
 
 	for file in c_files:
-		processed_cron = analyze_cron_file(**file, )
+		processed_cron = analyze_cron_file(file['user'], file['rows'])
 
 		if file['user'] == SYS_USER:
 			# If crontab is the system one, we need to do some work
@@ -396,16 +491,41 @@ def process_crontab(input_args):
 
 	return crontab_l
 
+# ==================================================================== #
+
+
+class CronlsCommand(setuptools.Command):
+	"""setuptools Command"""
+
+	description = "TODO"
+	user_options = [  ]
+	input_args = None
+
+	def initialize_options(self):
+		if 'setup.py' in sys.argv[0]:
+			argv = sys.argv[2:]
+		else:
+			argv = sys.argv[1:]
+
+		self.input_args = args.parse_cmd_args(argv)
+
+	def finalize_options(self):
+		pass
+
+	def run(self):
+		main(self.input_args)
+
 # -------------------------------------------------------------------- #
 
 def main(input_args):
 	crontab_l = process_crontab(input_args)
-	calcola_crontab(input_args, crontab_l)
+	exec_l = calc_executed_crontabs(input_args, crontab_l)
+	print_executed_crontabs(input_args, exec_l)
 
 # -------------------------------------------------------------------- #
 
 if __name__ == '__main__':
 	
-	input_args = args.parse_cmd_args(sys.argv[1:])
-	#main(input_args)
+	in_args = args.parse_cmd_args(sys.argv[1:])
+	main(in_args)
 
