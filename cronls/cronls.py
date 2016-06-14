@@ -12,7 +12,9 @@ import getpass
 import re
 import setuptools
 
-from . import args
+#import cronls.args as args
+import args
+
 
 SYS_USER = 'root[sys]'
 
@@ -445,6 +447,10 @@ def too_much_frequent(input_args, rule):
 # -------------------------------------------------------------------- #
 
 def print_executed_crontabs(input_args, exec_l):
+
+	if not exec_l:
+		return
+
 	max_user_length = max([len(e['rule']['user']) for e in exec_l])
 	tmp_format = PRINT_FORMAT % vars()
 
