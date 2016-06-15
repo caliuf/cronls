@@ -59,7 +59,7 @@ setup(
 		'test': PyTest
 	},
 	entry_points={
-		'distutils.commands': [
+		'console_scripts': [
 			'cronls = cronls.cronls:CronlsCommand'
 		]
 	},
